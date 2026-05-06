@@ -1,21 +1,15 @@
 import 'package:flutter/material.dart';
 import 'login_page.dart';
 import 'detail_page.dart';
-import 'cafeteria_page.dart';
-import 'notification_page.dart';
-import '../services/session.dart';
+import 'cafeteria_page.dart'; 
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'notification_page.dart'; // Added import
 
-class ProfilePage extends StatefulWidget {
-  final VoidCallback toggleTheme;
+class ProfilePage extends StatelessWidget {
+  final VoidCallback toggleTheme; 
 
-  const ProfilePage({super.key, required this.toggleTheme});
-
-  @override
-  State<ProfilePage> createState() => _ProfilePageState();
-}
-
-class _ProfilePageState extends State<ProfilePage> {
-  // Removed _ordersFuture as it is no longer needed for this view[cite: 34]
+  ProfilePage({super.key, required this.toggleTheme});
 
   final List<Map<String, dynamic>> menuItems = [
     {"title": "Personal Info", "icon": Icons.person},
@@ -58,19 +52,19 @@ class _ProfilePageState extends State<ProfilePage> {
                   child: Row(
                     children: [
                       GestureDetector(
-                        onTap: () {
-                          if (Navigator.canPop(context)) {
-                            Navigator.pop(context);
-                          } else {
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => CafeteriaPage(toggleTheme: widget.toggleTheme),
-                              ),
-                              (route) => false,
-                            );
-                          }
-                        },
+                       onTap: () {
+  if (Navigator.canPop(context)) {
+    Navigator.pop(context);
+  } else {
+    Navigator.pushAndRemoveUntil(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CafeteriaPage(toggleTheme: toggleTheme),
+      ),
+      (route) => false,
+    );
+  }
+},
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
@@ -95,7 +89,7 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                       const Spacer(),
                       GestureDetector(
-                        onTap: widget.toggleTheme,
+                        onTap: toggleTheme,
                         child: Container(
                           padding: const EdgeInsets.all(8),
                           decoration: BoxDecoration(
@@ -111,9 +105,10 @@ class _ProfilePageState extends State<ProfilePage> {
                       const SizedBox(width: 8),
                       GestureDetector(
                         onTap: () {
+                          // Notification action fixed
                           Navigator.push(
                             context,
-                            MaterialPageRoute(builder: (_) => const NotificationPage()),
+                            MaterialPageRoute(builder: (_) => NotificationPage()),
                           );
                         },
                         child: Container(
@@ -136,7 +131,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 child: ListView(
                   padding: const EdgeInsets.only(top: 10, bottom: 120), 
                   children: [
-                    // Header Section[cite: 34]
                     Container(
                       margin: const EdgeInsets.symmetric(horizontal: 16),
                       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 20),
@@ -172,29 +166,29 @@ class _ProfilePageState extends State<ProfilePage> {
                               Expanded(
                                 child: Column(
                                   crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Text(
-                                      AppSession.name,
-                                      style: const TextStyle(
-                                        fontFamily: 'Nunito',
-                                        color: Colors.white,
-                                        fontSize: 22,
-                                        fontWeight: FontWeight.bold,
-                                      ),
-                                    ),
-                                    const SizedBox(height: 4),
-                                    Text(
-                                      AppSession.email,
-                                      style: const TextStyle(
-                                        fontFamily: 'Inter',
-                                        color: Colors.white70,
-                                        fontSize: 13,
-                                      ),
-                                    ),
-                                  ],
+                                 children: [
+  Text(
+    FirebaseAuth.instance.currentUser?.displayName ?? 'User',
+    style: const TextStyle(
+      fontFamily: 'Nunito',
+      color: Colors.white,
+      fontSize: 22,
+      fontWeight: FontWeight.bold,
+    ),
+  ),
+  const SizedBox(height: 4),
+  Text(
+    FirebaseAuth.instance.currentUser?.email ?? '',
+    style: const TextStyle(
+      fontFamily: 'Inter',
+      color: Colors.white70,
+      fontSize: 13,
+    ),
+  ),
+],
                                 ),
                               ),
-                            ],
+                            ],  
                           ),
                           const SizedBox(height: 20),
                           Container(
@@ -206,21 +200,19 @@ class _ProfilePageState extends State<ProfilePage> {
                             ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
+                              children: const [
                                 Text(
-                                  AppSession.isVendor
-                                      ? (AppSession.cafe?["name"]?.toString() ?? "Vendor cafeteria")
-                                      : 'Nevark Corporate',
-                                  style: const TextStyle(
+                                  'Nevark Corporate',
+                                  style: TextStyle(
                                     fontFamily: 'Inter',
                                     color: Colors.white,
                                     fontWeight: FontWeight.w600,
                                   ),
                                 ),
-                                const SizedBox(height: 4),
+                                SizedBox(height: 4),
                                 Text(
-                                  AppSession.isVendor ? 'Vendor account' : 'Office cafeteria member',
-                                  style: const TextStyle(
+                                  'Office cafeteria member',
+                                  style: TextStyle(
                                     fontFamily: 'Inter',
                                     color: Colors.white70,
                                     fontSize: 12,
@@ -233,9 +225,6 @@ class _ProfilePageState extends State<ProfilePage> {
                       ),
                     ),
                     const SizedBox(height: 16),
-                    
-                    // The "Recent Orders" FutureBuilder section has been removed from here[cite: 34]
-
                     Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 16),
                       child: Container(
@@ -312,18 +301,33 @@ class _ProfilePageState extends State<ProfilePage> {
                             padding: const EdgeInsets.symmetric(vertical: 16),
                             shape: RoundedRectangleBorder(
                               borderRadius: BorderRadius.circular(18),
-                            ),
+                            ),  
                           ),
-                          onPressed: () {
-                            AppSession.clear();
-                            Navigator.pushAndRemoveUntil(
-                              context,
-                              MaterialPageRoute(
-                                builder: (_) => LoginPage(toggleTheme: widget.toggleTheme),
-                              ),
-                              (route) => false,
-                            );
-                          },
+                     onPressed: () async {
+  try {
+    final GoogleSignIn googleSignIn = GoogleSignIn();
+
+    // 🔥 Sign out from Google
+    if (await googleSignIn.isSignedIn()) {
+      await googleSignIn.signOut(); // good
+    }
+
+    // 🔥 Sign out from Firebase
+    await FirebaseAuth.instance.signOut();
+
+  } catch (e) {
+    print("Logout error: $e");
+  }
+
+  // ✅ THIS IS WHAT YOU MISSED
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(
+      builder: (_) => LoginPage(toggleTheme: toggleTheme),
+    ),
+    (route) => false,
+  );
+},
                           child: const Text(
                             'Logout',
                             style: TextStyle(
@@ -343,10 +347,22 @@ class _ProfilePageState extends State<ProfilePage> {
         ),
       ),
       bottomNavigationBar: CustomFloatingNavBar(
-        currentIndex: 2,
+        currentIndex: 2, 
         isDark: isDark,
-        toggleTheme: widget.toggleTheme,
+        toggleTheme: toggleTheme,
       ),
     );
   }
+}
+Future<void> logout(BuildContext context) async {
+  final GoogleSignIn googleSignIn = GoogleSignIn();
+
+  await googleSignIn.signOut(); // 🔥 THIS clears Google session
+  await FirebaseAuth.instance.signOut(); // Firebase logout
+
+  Navigator.pushAndRemoveUntil(
+    context,
+    MaterialPageRoute(builder: (_) => LoginPage()),
+    (route) => false,
+  );
 }
