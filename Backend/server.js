@@ -1,6 +1,8 @@
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
+const crypto = require('crypto');
+const Razorpay = require('razorpay');
 require('dotenv').config();
 
 const Cafe = require('./models/cafe');
@@ -10,6 +12,11 @@ const User = require('./models/user');
 
 const app = express();
 const allowedStatuses = ['Pending', 'Preparing', 'Ready', 'Completed', 'Rejected'];
+
+const razorpay = new Razorpay({
+  key_id: process.env.RAZORPAY_KEY_ID,
+  key_secret: process.env.RAZORPAY_KEY_SECRET,
+});
 
 app.use(cors({ origin: process.env.CLIENT_ORIGIN || '*' }));
 app.use(express.json({ limit: '50mb' }));
@@ -96,7 +103,17 @@ async function createOrder(req, res) {
     notes,
   });
 
-  res.status(201).json(order);
+  let razorpayOrder = null;
+  if (payment.method === 'Online') {
+    const options = {
+      amount: total * 100,
+      currency: 'INR',
+      receipt: order.orderId,
+    };
+    razorpayOrder = await razorpay.orders.create(options);
+  }
+
+  res.status(201).json({ order, razorpayOrder });
 }
 
 async function connectDatabase() {
@@ -289,6 +306,55 @@ app.get('/api/vendor/:vendorId/dashboard', asyncHandler(async (req, res) => {
     completed: summary?.completed || 0,
     recentOrders,
   });
+}));
+
+app.post('/api/payment/create-order', asyncHandler(async (req, res) => {
+  const { amount, currency = 'INR', receipt } = req.body;
+
+  if (!amount || amount <= 0) {
+    return res.status(400).json({ message: 'Valid amount is required' });
+  }
+
+  const options = {
+    amount: amount * 100, // Razorpay expects amount in paisa
+    currency,
+    receipt,
+  };
+
+  const order = await razorpay.orders.create(options);
+  res.json(order);
+}));
+
+app.post('/api/payment/verify', asyncHandler(async (req, res) => {
+  const { razorpay_order_id, razorpay_payment_id, razorpay_signature } = req.body;
+
+  const sign = razorpay_order_id + '|' + razorpay_payment_id;
+  const expectedSign = crypto.createHmac('sha256', process.env.RAZORPAY_KEY_SECRET)
+    .update(sign.toString())
+    .digest('hex');
+
+  if (razorpay_signature === expectedSign) {
+    res.json({ message: 'Payment verified successfully' });
+  } else {
+    res.status(400).json({ message: 'Payment verification failed' });
+  }
+}));
+
+app.patch('/api/orders/:orderId/payment', asyncHandler(async (req, res) => {
+  const { transactionId, status } = req.body;
+
+  const order = await Order.findOneAndUpdate(
+    { orderId: req.params.orderId },
+    { 
+      'payment.transactionId': transactionId,
+      'payment.status': status,
+      'payment.provider': 'Razorpay'
+    },
+    { new: true }
+  );
+
+  if (!order) return res.status(404).json({ message: 'Order not found' });
+  res.json(order);
 }));
 
 app.use((req, res) => {

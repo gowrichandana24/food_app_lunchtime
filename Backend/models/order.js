@@ -31,7 +31,7 @@ const OrderSchema = new mongoose.Schema(
       index: true,
     },
     payment: {
-      method: { type: String, enum: ['UPI', 'Wallet', 'NetBanking', 'Cash', 'Mock'], default: 'Mock' },
+      method: { type: String, enum: ['UPI', 'Wallet', 'NetBanking', 'Cash', 'Mock', 'Online'], default: 'Mock' },
       provider: { type: String, default: '' },
       transactionId: { type: String, default: '' },
       status: { type: String, enum: ['Pending', 'Paid', 'Failed', 'Refunded'], default: 'Paid' },
