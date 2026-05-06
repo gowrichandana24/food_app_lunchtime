@@ -4,6 +4,9 @@ import 'detail_page.dart';
 import 'cart_page.dart';
 import '../services/api_service.dart';
 import '../services/session.dart';
+import '../services/razorpay_helper.dart';
+import 'package:http/http.dart' as http;
+import 'dart:convert';
 
 class CheckoutPage extends StatefulWidget {
   final List<OrderItem>? items; 
@@ -34,7 +37,22 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   final TextEditingController upiController = TextEditingController();
 
+  Map<String, dynamic>? _currentOrder;
+  Map<String, dynamic>? _razorpayOrder;
+
   bool get isDark => Theme.of(context).brightness == Brightness.dark;
+
+  @override
+  void initState() {
+    super.initState();
+    initRazorpay(_handleRazorpaySuccess, _handleRazorpayError);
+  }
+
+  @override
+  void dispose() {
+    disposeRazorpay();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -342,27 +360,46 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     setState(() => isSubmitting = true);
     try {
-      final order = await ApiService.placeOrder(
-        customerName: AppSession.name,
-        customerEmail: AppSession.email,
-        userId: AppSession.userId.isEmpty ? null : AppSession.userId,
-        cafeId: widget.cafeId,
-        cafeteriaName: _cafeteriaName(),
-        items: orderItems,
-        paymentMethod: "UPI",
-        paymentProvider: selectedUPIApp.isNotEmpty
-            ? selectedUPIApp
-            : (upiController.text.isNotEmpty ? upiController.text : "UPI"),
-        location: widget.pickupLocation ?? "Pickup counter",
+      final response = await http.post(
+        Uri.parse('${ApiService.baseUrl}/orders'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'customerName': AppSession.name,
+          'customerEmail': AppSession.email,
+          'userId': AppSession.userId.isEmpty ? null : AppSession.userId,
+          'cafeId': widget.cafeId,
+          'cafeteriaName': _cafeteriaName(),
+          'items': orderItems,
+          'payment': {
+            'method': 'Online',
+            'provider': 'Razorpay',
+            'status': 'Pending',
+          },
+          'location': widget.pickupLocation ?? "Pickup counter",
+        }),
       );
 
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(builder: (_) => SuccessPage(order: order)),
-      );
+      final data = jsonDecode(response.body);
+      if (response.statusCode == 201) {
+        _currentOrder = data['order'];
+        _razorpayOrder = data['razorpayOrder'];
+
+        if (_razorpayOrder != null) {
+          await _openRazorpayCheckout();
+        } else {
+          // Fallback if no razorpay order
+          if (_currentOrder != null) {
+            Navigator.pushReplacement(
+              context,
+              MaterialPageRoute(builder: (_) => SuccessPage(order: _currentOrder!)),
+            );
+          }
+        }
+      } else {
+        _showError(data['message'] ?? 'Failed to place order');
+      }
     } catch (error) {
-      if (mounted) _showError(error.toString().replaceFirst("Exception: ", ""));
+      _showError(error.toString().replaceFirst("Exception: ", ""));
     } finally {
       if (mounted) setState(() => isSubmitting = false);
     }
@@ -405,4 +442,53 @@ class _CheckoutPageState extends State<CheckoutPage> {
       SnackBar(content: Text(message), backgroundColor: Colors.redAccent),
     );
   }
+
+  void _handleRazorpayError(String message) {
+    _showError('Payment failed: $message');
+  }
+
+  Future<void> _handleRazorpaySuccess(Map<String, dynamic> response) async {
+    try {
+      final verifyResponse = await http.post(
+        Uri.parse('${ApiService.baseUrl}/payment/verify'),
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'razorpay_order_id': response['orderId'],
+          'razorpay_payment_id': response['paymentId'],
+          'razorpay_signature': response['signature'],
+        }),
+      );
+
+      if (verifyResponse.statusCode == 200) {
+        if (_currentOrder != null) {
+          await http.patch(
+            Uri.parse('${ApiService.baseUrl}/orders/${_currentOrder!['orderId']}/payment'),
+            headers: {'Content-Type': 'application/json'},
+            body: jsonEncode({
+              'transactionId': response['paymentId'],
+              'status': 'Paid',
+            }),
+          );
+        }
+
+        if (!mounted || _currentOrder == null) return;
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (_) => SuccessPage(order: _currentOrder!)),
+        );
+      } else {
+        _showError('Payment verification failed');
+      }
+    } catch (error) {
+      _showError('Payment verification error: $error');
+    }
+  }
+
+  Future<void> _openRazorpayCheckout() async {
+    if (_razorpayOrder == null) return;
+
+    await openRazorpayCheckout(_razorpayOrder!, AppSession.email);
+  }
 }
+
+
