@@ -24,6 +24,14 @@ class AppSession {
     return null;
   }
 
+  static String get cafeId {
+    final value = currentUser?["cafeId"];
+    if (value is String) return value;
+    if (value is Map<String, dynamic>) return value["_id"]?.toString() ?? "";
+    if (value is Map) return value["_id"]?.toString() ?? "";
+    return "";
+  }
+
   static void setUser(Map<String, dynamic> user) {
     currentUser = user;
   }

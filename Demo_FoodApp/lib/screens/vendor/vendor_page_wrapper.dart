@@ -210,8 +210,9 @@ class _VendorPageWrapperState extends State<VendorPageWrapper> {
           if (MediaQuery.of(context).size.width < 850) Navigator.pop(context);
           Future.delayed(const Duration(milliseconds: 150), () {
             Widget page;
-            if (title == "Orders") page = const OrdersPage();
-            else if (title == "Analytics") page = const AnalyticsPage();
+            if (title == "Orders") {
+              page = const OrdersPage();
+            } else if (title == "Analytics") page = const AnalyticsPage();
             else if (title == "Menu") page = MenuPage(toggleTheme: widget.toggleTheme);
             else if (title == "Reports") page = const SalesReportPage();
             else if (title == "Settings") page = const SettingsPage();

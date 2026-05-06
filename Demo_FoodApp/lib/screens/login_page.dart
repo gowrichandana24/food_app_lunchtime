@@ -227,7 +227,7 @@ Widget _buildBranding({required bool isMobile}) {
               child: Image.asset(
                 'logo1.gif',
                 fit: BoxFit.contain,
-                errorBuilder: (_, __, ___) => Icon(Icons.lunch_dining_rounded, color: isMobile ? appBlue : Colors.white, size: 30),
+                errorBuilder: (_, _, _) => Icon(Icons.lunch_dining_rounded, color: isMobile ? appBlue : Colors.white, size: 30),
               ),
             ),
           ),
@@ -332,7 +332,7 @@ Widget _buildFeaturePoint(IconData icon, String text, bool isMobile, Color textC
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Image.asset('google.png', height: 24, errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 28, color: Colors.blue)),
+                  Image.asset('google.png', height: 24, errorBuilder: (_, _, _) => const Icon(Icons.g_mobiledata, size: 28, color: Colors.blue)),
                   const SizedBox(width: 14),
                   Text(
                     isSigningIn ? "Signing in..." : "Continue with Google",
@@ -421,7 +421,7 @@ Widget _buildFeaturePoint(IconData icon, String text, bool isMobile, Color textC
       imageWidget = Image.asset(
         name, 
         width: size, height: size, fit: BoxFit.cover,
-        errorBuilder: (_, __, ___) => Icon(iconData ?? Icons.food_bank_rounded, size: size * 0.7, color: isMobile ? Colors.white70 : const Color(0xFF64748B)),
+        errorBuilder: (_, _, _) => Icon(iconData ?? Icons.food_bank_rounded, size: size * 0.7, color: isMobile ? Colors.white70 : const Color(0xFF64748B)),
       );
     } else {
       imageWidget = Icon(iconData ?? Icons.local_dining_rounded, size: size, color: iconColor);

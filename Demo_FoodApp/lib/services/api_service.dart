@@ -1,12 +1,29 @@
 import 'dart:convert';
-
+import 'dart:io' show Platform;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:http/http.dart' as http;
 
 class ApiService {
-  static const String baseUrl = String.fromEnvironment(
-    'API_BASE_URL',
-    defaultValue: 'http://localhost:5000/api',
-  );
+  static String get baseUrl {
+    const envUrl = String.fromEnvironment('API_BASE_URL');
+    if (envUrl.isNotEmpty) {
+      return envUrl;
+    }
+
+    if (kIsWeb) {
+      return 'http://localhost:5000/api';
+    }
+
+    if (Platform.isAndroid) {
+      return 'http://10.0.2.2:5000/api';
+    }
+
+    if (Platform.isIOS) {
+      return 'http://localhost:5000/api';
+    }
+
+    return 'http://localhost:5000/api';
+  }
 
   static Future<Map<String, dynamic>> googleSignIn({
     required String googleId,
@@ -76,17 +93,34 @@ class ApiService {
 
   static Future<List<Map<String, dynamic>>> getOrders({
     String? cafeId,
+    String? vendorId,
     String? status,
     String? customerEmail,
   }) async {
     final uri = Uri.parse('$baseUrl/orders').replace(queryParameters: {
       if (cafeId != null && cafeId.isNotEmpty) 'cafeId': cafeId,
+      if (vendorId != null && vendorId.isNotEmpty) 'vendorId': vendorId,
       if (status != null && status.isNotEmpty) 'status': status,
       if (customerEmail != null && customerEmail.isNotEmpty) 'customerEmail': customerEmail,
     });
 
     final response = await http.get(uri);
     return _decodeList(response);
+  }
+
+  static Future<List<Map<String, dynamic>>> getNotifications({
+    required String customerEmail,
+  }) async {
+    final uri = Uri.parse('$baseUrl/notifications').replace(queryParameters: {
+      'customerEmail': customerEmail,
+    });
+    final response = await http.get(uri);
+    return _decodeList(response);
+  }
+
+  static Future<Map<String, dynamic>> markNotificationAsRead(String notificationId) async {
+    final response = await http.patch(Uri.parse('$baseUrl/notifications/$notificationId/read'));
+    return _decodeObject(response);
   }
 
   static Future<List<Map<String, dynamic>>> getCafes({String? search}) async {

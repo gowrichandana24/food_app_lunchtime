@@ -86,7 +86,7 @@ class _CartPageState extends State<CartPage> {
                     if (globalCartItems.isEmpty)
                       _buildEmptyCart(subTextColor)
                     else ...[
-                      ...globalCartItems.map((item) => _buildCartItemCard(item, isDark, cardColor, textColor, subTextColor)).toList(),
+                      ...globalCartItems.map((item) => _buildCartItemCard(item, isDark, cardColor, textColor, subTextColor)),
                       const SizedBox(height: 16),
                       _buildCouponSection(isDark, cardColor, textColor, subTextColor),
                       const SizedBox(height: 24),
@@ -196,14 +196,14 @@ class _CartPageState extends State<CartPage> {
         child: const Icon(Icons.fastfood, color: Colors.grey, size: 32),
       );
     } else if (imageValue.startsWith('http') || imageValue.startsWith('data:')) {
-      imageWidget = Image.network(imageValue, height: 80, width: 80, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(
+      imageWidget = Image.network(imageValue, height: 80, width: 80, fit: BoxFit.cover, errorBuilder: (_, _, _) => Container(
         color: Colors.grey.shade200,
         height: 80,
         width: 80,
         child: const Icon(Icons.fastfood, color: Colors.grey, size: 32),
       ));
     } else {
-      imageWidget = Image.asset(imageValue, height: 80, width: 80, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Container(
+      imageWidget = Image.asset(imageValue, height: 80, width: 80, fit: BoxFit.cover, errorBuilder: (_, _, _) => Container(
         color: Colors.grey.shade200,
         height: 80,
         width: 80,
@@ -263,7 +263,9 @@ class _CartPageState extends State<CartPage> {
               child: const Icon(Icons.delete_outline_rounded, color: Colors.red, size: 20),
             ),
             onPressed: () => setState(() {
-               for(int i = 0; i < item["qty"]; i++) CartModel.remove(item["id"]); 
+               for(int i = 0; i < item["qty"]; i++) {
+                 CartModel.remove(item["id"]);
+               } 
                globalCartItems.remove(item);
             }),
           )

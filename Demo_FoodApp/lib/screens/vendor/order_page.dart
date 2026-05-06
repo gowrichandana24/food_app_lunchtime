@@ -17,6 +17,8 @@ class _OrdersPageState extends State<OrdersPage> {
   String? loadError;
 
   List<Map<String, dynamic>> orders = [];
+  final List<String> _knownOrderIds = [];
+  bool _hasLoadedOrders = false;
 
   @override
   void initState() {
@@ -31,12 +33,42 @@ class _OrdersPageState extends State<OrdersPage> {
     });
 
     try {
-      final data = await ApiService.getOrders(cafeId: AppSession.cafe?["_id"]?.toString());
+      // For vendors: use vendorId to fetch ALL orders from all managed cafes
+      // For cafe managers: use cafeId for single cafe
+      final vendorId = AppSession.isVendor ? AppSession.vendorId : null;
+      final cafeId = !AppSession.isVendor ? AppSession.cafeId : null;
+      
+      final data = await ApiService.getOrders(
+        cafeId: cafeId != null && cafeId.isNotEmpty ? cafeId : null,
+        vendorId: vendorId != null && vendorId.isNotEmpty ? vendorId : null,
+      );
+
+      final currentOrders = data.map(_mapApiOrder).toList();
+      final newPendingOrders = currentOrders.where((order) {
+        return !_knownOrderIds.contains(order['id']) && order['status'] == 'Pending';
+      }).toList();
+
       if (!mounted) return;
       setState(() {
-        orders = data.map(_mapApiOrder).toList();
+        orders = currentOrders;
         isLoading = false;
       });
+
+      if (_hasLoadedOrders && newPendingOrders.isNotEmpty) {
+        final latest = newPendingOrders.first['id'];
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('New order placed: #$latest'),
+            backgroundColor: const Color(0xFF0F4CFF),
+            duration: const Duration(seconds: 4),
+          ),
+        );
+      }
+
+      _knownOrderIds
+        ..clear()
+        ..addAll(currentOrders.map((order) => order['id'].toString()));
+      _hasLoadedOrders = true;
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -175,28 +207,44 @@ class _OrdersPageState extends State<OrdersPage> {
               thickness: 1.5,
             ),
           ),
-          Column(
-            children: order["items"].map<Widget>((item) {
-              return Padding(
-                padding: const EdgeInsets.only(bottom: 8.0),
-                child: Row(
-                  children: [
-                    Expanded(
-                        child: Text("${item["name"]}  x${item["qty"]}",
-                            style: TextStyle(
-                                fontFamily: 'Inter',
-                                color: textColor,
-                                fontWeight: FontWeight.w500))),
-                    Text("₹${item["price"]}",
-                        style: TextStyle(
-                            fontFamily: 'Nunito',
-                            color: textColor,
-                            fontWeight: FontWeight.w800)),
-                  ],
-                ),
-              );
-            }).toList(),
-          ),
+          if (order["items"] != null && (order["items"] as List).isNotEmpty)
+            Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: (order["items"] as List).map<Widget>((item) {
+                final itemName = item["name"]?.toString() ?? "Item";
+                final itemQty = item["qty"]?.toString() ?? item["quantity"]?.toString() ?? "1";
+                final itemPrice = item["price"]?.toString() ?? "0";
+                
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 12.0),
+                  child: Row(
+                    children: [
+                      Expanded(
+                          child: Text("$itemName  x$itemQty",
+                              style: TextStyle(
+                                  fontFamily: 'Inter',
+                                  color: textColor,
+                                  fontWeight: FontWeight.w500,
+                                  fontSize: 14))),
+                      Text("₹$itemPrice",
+                          style: TextStyle(
+                              fontFamily: 'Nunito',
+                              color: textColor,
+                              fontWeight: FontWeight.w800,
+                              fontSize: 14)),
+                    ],
+                  ),
+                );
+              }).toList(),
+            )
+          else
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 12.0),
+              child: Text(
+                "No items in order",
+                style: TextStyle(color: subText, fontStyle: FontStyle.italic),
+              ),
+            ),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -332,6 +380,13 @@ class _OrdersPageState extends State<OrdersPage> {
 
     try {
       await ApiService.updateOrderStatus(order["id"], status);
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Order status updated to $status'),
+          backgroundColor: Colors.green,
+        ),
+      );
       await loadOrders();
     } catch (error) {
       if (!mounted) return;

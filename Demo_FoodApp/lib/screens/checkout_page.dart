@@ -341,7 +341,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
   Widget _bankUI() {
     return DropdownButtonFormField<String>(
-      value: selectedBank.isEmpty ? null : selectedBank,
+      initialValue: selectedBank.isEmpty ? null : selectedBank,
       hint: const Text("Select Bank"),
       items: ["HDFC", "ICICI", "SBI", "Axis"]
         .map((e) => DropdownMenuItem(value: e, child: Text(e)))
@@ -458,6 +458,44 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
+  Future<void> _showOrderPlacedPopup() async {
+    await showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          backgroundColor: isDark ? const Color(0xFF0F172A) : Colors.white,
+          title: Row(
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: const Color(0xFF0F4CFF).withOpacity(0.16),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(Icons.check_circle_outline, color: Color(0xFF0F4CFF), size: 30),
+              ),
+              const SizedBox(width: 12),
+              Text('Order Confirmed', style: TextStyle(color: isDark ? Colors.white : Colors.black)),
+            ],
+          ),
+          content: Text(
+            'Your payment was successful and your order has been placed. Check notifications for updates.',
+            style: TextStyle(color: isDark ? Colors.white70 : Colors.black87),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        );
+      },
+    );
+  }
+
   void _handleRazorpayError(String message) {
     _showError('Payment failed: $message');
   }
@@ -487,6 +525,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
         }
 
         if (!mounted || _currentOrder == null) return;
+        await _showOrderPlacedPopup();
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (_) => SuccessPage(order: _currentOrder!)),

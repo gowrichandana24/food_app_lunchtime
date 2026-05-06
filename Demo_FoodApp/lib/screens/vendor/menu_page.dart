@@ -416,7 +416,7 @@ class _MenuPageState extends State<MenuPage> {
             clipBehavior: Clip.antiAlias,
             child: item.image.isEmpty
                 ? Icon(Icons.fastfood_rounded, color: primaryBlue.withOpacity(0.5), size: 40)
-                : Image.network(item.image, fit: BoxFit.cover, errorBuilder: (_, __, ___) => Icon(Icons.fastfood_rounded, color: primaryBlue.withOpacity(0.5), size: 40)),
+                : Image.network(item.image, fit: BoxFit.cover, errorBuilder: (_, _, _) => Icon(Icons.fastfood_rounded, color: primaryBlue.withOpacity(0.5), size: 40)),
           ),
           const SizedBox(height: 16),
           Text(item.name, maxLines: 1, overflow: TextOverflow.ellipsis, style: TextStyle(fontFamily: 'Nunito', fontWeight: FontWeight.w900, fontSize: 16, color: textColor)),

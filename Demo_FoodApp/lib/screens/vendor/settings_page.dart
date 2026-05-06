@@ -292,7 +292,7 @@ class _SettingsPageState extends State<SettingsPage> {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8.0),
       child: SwitchListTile(
-        activeColor: primaryBlue,
+        activeThumbColor: primaryBlue,
         contentPadding: EdgeInsets.zero,
         title: Text(title,
             style: TextStyle(fontFamily: 'Inter', fontWeight: FontWeight.w600, color: text)),

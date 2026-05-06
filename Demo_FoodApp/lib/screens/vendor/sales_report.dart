@@ -390,7 +390,7 @@ class _SalesReportPageState extends State<SalesReportPage> {
           : ListView.separated(
               padding: EdgeInsets.zero,
               itemCount: recentOrders.length,
-              separatorBuilder: (_, __) => Divider(color: isDark ? Colors.white12 : Colors.grey.shade200),
+              separatorBuilder: (_, _) => Divider(color: isDark ? Colors.white12 : Colors.grey.shade200),
               itemBuilder: (context, index) {
                 final order = recentOrders[index];
                 return ListTile(

@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
 class VendorOrdersPage extends StatefulWidget {
+  const VendorOrdersPage({super.key});
+
   @override
   State<VendorOrdersPage> createState() => _VendorOrdersPageState();
 }

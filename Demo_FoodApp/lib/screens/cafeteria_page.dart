@@ -497,7 +497,7 @@ class _CafeteriaPageState extends State<CafeteriaPage> {
                         height: 190,
                         width: double.infinity,
                         fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => Container(color: Colors.grey.shade200),
+                        errorBuilder: (_, _, _) => Container(color: Colors.grey.shade200),
                       );
                     }
                     return Image.network(
@@ -505,7 +505,7 @@ class _CafeteriaPageState extends State<CafeteriaPage> {
                       height: 190,
                       width: double.infinity,
                       fit: BoxFit.cover,
-                      errorBuilder: (_, __, ___) => Container(color: Colors.grey.shade200),
+                      errorBuilder: (_, _, _) => Container(color: Colors.grey.shade200),
                     );
                   },
                 ),
