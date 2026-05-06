@@ -599,7 +599,7 @@ void initState() {
           child: Opacity(
             opacity: _opacity.value,
             child: Text(
-              "Cavery",
+              "BenchBites",
               style: TextStyle(
                 fontSize: widget.isMobile ? 34 : 54,
                 fontWeight: FontWeight.w900,

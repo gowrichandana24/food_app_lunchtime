@@ -7,6 +7,7 @@ import '../services/session.dart';
 import '../services/razorpay_helper.dart';
 import 'package:http/http.dart' as http;
 import 'dart:convert';
+import 'package:qr_flutter/qr_flutter.dart';
 
 class CheckoutPage extends StatefulWidget {
   final List<OrderItem>? items; 
@@ -130,6 +131,7 @@ class _CheckoutPageState extends State<CheckoutPage> {
       ),
     ],
                   _section("UPI (Recommended)", "upi", _upiUI(), cardColor, textColor, isAvailable: true),
+                  _section("UPI QR Code", "qr", _qrUI(), cardColor, textColor, isAvailable: true),
                   _section("Wallets", "wallet", _walletUI(), cardColor, textColor, isAvailable: false),
                   _section("Net Banking", "bank", _bankUI(), cardColor, textColor, isAvailable: false),
                   const SizedBox(height: 100),
@@ -296,6 +298,47 @@ class _CheckoutPageState extends State<CheckoutPage> {
     );
   }
 
+  Widget _qrUI() {
+    final textColor = isDark ? Colors.white : Colors.black;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Text(
+          "Scan QR Code to Pay",
+          style: TextStyle(fontWeight: FontWeight.w600, color: textColor, fontSize: 16),
+        ),
+        const SizedBox(height: 16),
+        Container(
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: Colors.grey.shade300),
+          ),
+          child: QrImageView(
+            data: _generateUPIString(),
+            version: QrVersions.auto,
+            size: 200.0,
+            backgroundColor: Colors.white,
+            foregroundColor: Colors.black,
+          ),
+        ),
+        const SizedBox(height: 16),
+        Text(
+          "Scan this QR code with any UPI app to complete payment",
+          style: TextStyle(color: textColor.withOpacity(0.7), fontSize: 14),
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: 12),
+        Text(
+          "Amount: ₹${_calculateTotal().toStringAsFixed(2)}",
+          style: TextStyle(color: textColor, fontWeight: FontWeight.bold, fontSize: 16),
+        ),
+      ],
+    );
+  }
+
   Widget _walletUI() {
     return Column(
       children: [
@@ -371,8 +414,8 @@ class _CheckoutPageState extends State<CheckoutPage> {
           'cafeteriaName': _cafeteriaName(),
           'items': orderItems,
           'payment': {
-            'method': 'Online',
-            'provider': 'Razorpay',
+            'method': selectedMethod == 'qr' ? 'UPI' : 'Online',
+            'provider': selectedMethod == 'qr' ? 'UPI_QR' : 'Razorpay',
             'status': 'Pending',
           },
           'location': widget.pickupLocation ?? "Pickup counter",
@@ -384,7 +427,12 @@ class _CheckoutPageState extends State<CheckoutPage> {
         _currentOrder = data['order'];
         _razorpayOrder = data['razorpayOrder'];
 
-        if (_razorpayOrder != null) {
+        if (selectedMethod == 'qr') {
+          // Show QR code dialog for UPI payment
+          print('Selected QR method, showing dialog');
+          setState(() => isSubmitting = false); // Reset submitting state
+          _showQRCodeDialog();
+        } else if (_razorpayOrder != null) {
           await _openRazorpayCheckout();
         } else {
           // Fallback if no razorpay order
@@ -489,6 +537,132 @@ class _CheckoutPageState extends State<CheckoutPage> {
 
     await openRazorpayCheckout(_razorpayOrder!, AppSession.email);
   }
-}
 
+  void _showQRCodeDialog() {
+    try {
+      final upiString = _generateUPIString();
+      final total = _calculateTotal();
+
+      showDialog(
+        context: context,
+        barrierDismissible: false,
+        builder: (BuildContext context) {
+          return AlertDialog(
+            title: const Text('Scan QR Code to Pay'),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(16),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.grey.shade300),
+                  ),
+                  child: QrImageView(
+                    data: upiString,
+                    version: QrVersions.auto,
+                    size: 200.0,
+                    backgroundColor: Colors.white,
+                    foregroundColor: Colors.black,
+                    errorStateBuilder: (cxt, err) {
+                      return Center(
+                        child: Text(
+                          "Error generating QR code: $err",
+                          textAlign: TextAlign.center,
+                        ),
+                      );
+                    },
+                  ),
+                ),
+                const SizedBox(height: 16),
+                Text(
+                  'Amount: ₹${total.toStringAsFixed(2)}',
+                  style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                ),
+                const SizedBox(height: 8),
+                const Text(
+                  'Scan this QR code with any UPI app to complete payment',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(fontSize: 14, color: Colors.grey),
+                ),
+                const SizedBox(height: 8),
+                Text(
+                  'UPI String: $upiString',
+                  style: const TextStyle(fontSize: 10, color: Colors.grey),
+                  textAlign: TextAlign.center,
+                ),
+              ],
+            ),
+            actions: [
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _checkPaymentStatus();
+                },
+                child: const Text('I\'ve Paid'),
+              ),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).pop();
+                  _showError('Payment cancelled');
+                },
+                child: const Text('Cancel'),
+              ),
+            ],
+          );
+        },
+      );
+    } catch (e) {
+      _showError('Error showing QR code: $e');
+    }
+  }
+
+  Future<void> _checkPaymentStatus() async {
+    if (_currentOrder == null) return;
+
+    try {
+      // Check order status from backend
+      final response = await http.get(
+        Uri.parse('${ApiService.baseUrl}/orders/${_currentOrder!['orderId']}'),
+      );
+
+      if (response.statusCode == 200) {
+        final orderData = jsonDecode(response.body);
+        if (orderData['payment']['status'] == 'Paid') {
+          Navigator.pushReplacement(
+            context,
+            MaterialPageRoute(builder: (_) => SuccessPage(order: orderData)),
+          );
+        } else {
+          _showError('Payment not completed yet. Please try again or contact support.');
+        }
+      } else {
+        _showError('Unable to verify payment status');
+      }
+    } catch (error) {
+      _showError('Error checking payment status: $error');
+    }
+  }
+
+  String _generateUPIString() {
+    // Generate UPI payment string for QR code
+    final total = _calculateTotal();
+    final upiId = "merchant@upi"; // Replace with actual merchant UPI ID
+    final merchantName = "Food App Lunchtime";
+    final transactionId = "TXN${DateTime.now().millisecondsSinceEpoch}";
+    final transactionNote = "Order Payment";
+
+    return "upi://pay?pa=$upiId&pn=$merchantName&am=$total&cu=INR&tn=$transactionNote&tr=$transactionId";
+  }
+
+  double _calculateTotal() {
+    double total = 0;
+    final items = _orderItems();
+    for (var item in items) {
+      total += (item['price'] as num) * (item['qty'] as num);
+    }
+    return total + 3.0; // Add platform fee
+  }
+}
 

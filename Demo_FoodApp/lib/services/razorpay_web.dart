@@ -1,6 +1,4 @@
-import 'dart:html' as html;
 import 'dart:js' as js;
-import 'dart:js_util' as js_util;
 
 late void Function(Map<String, dynamic>) _paymentSuccessCallback;
 late void Function(String) _paymentErrorCallback;
@@ -18,7 +16,7 @@ Future<void> openRazorpayCheckout(
   String email,
 ) async {
   try {
-    final options = {
+    final options = js.JsObject.jsify({
       'key': 'rzp_test_SlvgRUZCtwvlVA',
       'amount': razorpayOrder['amount'],
       'currency': razorpayOrder['currency'] ?? 'INR',
@@ -32,25 +30,23 @@ Future<void> openRazorpayCheckout(
       'theme': {
         'color': '#0F4CFF',
       },
-      'handler': js.allowInterop((response) {
+      'handler': (response) {
         _paymentSuccessCallback({
-          'paymentId': js_util.getProperty(response, 'razorpay_payment_id'),
-          'orderId': js_util.getProperty(response, 'razorpay_order_id'),
-          'signature': js_util.getProperty(response, 'razorpay_signature'),
+          'paymentId': response['razorpay_payment_id'],
+          'orderId': response['razorpay_order_id'],
+          'signature': response['razorpay_signature'],
         });
-      }),
+      },
       'modal': {
-        'ondismiss': js.allowInterop(() {
+        'ondismiss': () {
           _paymentErrorCallback('Payment cancelled');
-        })
+        }
       }
-    };
+    });
 
-    final razorpay = js_util.callConstructor(
-      js_util.getProperty(html.window, 'Razorpay'),
-      [js_util.jsify(options)],
-    );
-    js_util.callMethod(razorpay, 'open', []);
+    final razorpayConstructor = js.context['Razorpay'];
+    final razorpay = js.JsObject(razorpayConstructor, [options]);
+    razorpay.callMethod('open', []);
   } catch (e) {
     _paymentErrorCallback('Error opening Razorpay checkout: $e');
   }
