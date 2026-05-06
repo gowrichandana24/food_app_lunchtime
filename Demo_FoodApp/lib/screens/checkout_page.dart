@@ -499,9 +499,21 @@ class _CheckoutPageState extends State<CheckoutPage> {
     }
   }
 
+  // --- THIS IS THE ONLY CHANGED METHOD ---
   Future<void> _openRazorpayCheckout() async {
     if (_razorpayOrder == null) return;
 
-    await openRazorpayCheckout(_razorpayOrder!, AppSession.email);
+    // Grab the UPI ID from the text field
+    String? enteredUpiId = upiController.text.trim();
+    if (enteredUpiId.isEmpty) {
+      enteredUpiId = null;
+    }
+
+    // Pass the upiId to the razorpay helper
+    await openRazorpayCheckout(
+      _razorpayOrder!, 
+      AppSession.email,
+      upiId: enteredUpiId, 
+    );
   }
 }

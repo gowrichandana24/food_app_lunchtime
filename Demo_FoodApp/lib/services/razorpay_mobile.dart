@@ -29,8 +29,22 @@ Future<void> initRazorpay(
 
 Future<void> openRazorpayCheckout(
   Map<String, dynamic> razorpayOrder,
-  String email,
-) async {
+  String email, {
+  String? upiId, // Added optional UPI parameter
+}) async {
+  
+  // Build the prefill map. Razorpay strictly requires a contact number for UPI flows.
+  final prefill = <String, dynamic>{
+    'email': email,
+    'contact': '9999999999', 
+  };
+
+  // If the user typed a UPI ID, add it to the Virtual Payment Address (vpa) field
+  if (upiId != null && upiId.isNotEmpty) {
+    prefill['vpa'] = upiId;
+    prefill['method'] = 'upi';
+  }
+
   final options = {
     'key': 'rzp_test_SlvgRUZCtwvlVA',
     'amount': razorpayOrder['amount'],
@@ -38,12 +52,21 @@ Future<void> openRazorpayCheckout(
     'name': 'Food App Lunchtime',
     'order_id': razorpayOrder['id'],
     'description': 'Order Payment',
-    'prefill': {
-      'email': email,
-      'contact': '',
-    },
+    'prefill': prefill,
     'theme': {
       'color': '#0F4CFF',
+    },
+    'config': {
+      'display': {
+        'blocks': {
+          'upi': {
+            'name': 'UPI Payment',
+            'instruments': [{'method': 'upi'}]
+          }
+        },
+        'sequence': ['block.upi'],
+        'preferences': {'show_default_blocks': false}
+      }
     },
   };
 

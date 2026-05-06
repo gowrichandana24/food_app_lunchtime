@@ -13,9 +13,21 @@ Future<void> initRazorpay(
 
 Future<void> openRazorpayCheckout(
   Map<String, dynamic> razorpayOrder,
-  String email,
-) async {
+  String email, {
+  String? upiId, // Added optional UPI parameter
+}) async {
   try {
+    // Build the prefill map safely for JS interop
+    final prefill = <String, dynamic>{
+      'email': email,
+      'contact': '9999999999', 
+    };
+
+    if (upiId != null && upiId.isNotEmpty) {
+      prefill['vpa'] = upiId;
+      prefill['method'] = 'upi';
+    }
+
     final options = js.JsObject.jsify({
       'key': 'rzp_test_SlvgRUZCtwvlVA',
       'amount': razorpayOrder['amount'],
@@ -23,9 +35,18 @@ Future<void> openRazorpayCheckout(
       'name': 'Food App Lunchtime',
       'order_id': razorpayOrder['id'],
       'description': 'Order Payment',
-      'prefill': {
-        'email': email,
-        'contact': '',
+      'prefill': prefill,
+      'config': {
+        'display': {
+          'blocks': {
+            'upi': {
+              'name': 'UPI Payment',
+              'instruments': [{'method': 'upi'}]
+            }
+          },
+          'sequence': ['block.upi'],
+          'preferences': {'show_default_blocks': false}
+        }
       },
       'theme': {
         'color': '#0F4CFF',
