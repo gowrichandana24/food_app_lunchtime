@@ -1,11 +1,12 @@
 import 'package:flutter/material.dart';
-import 'dart:math' as math;
-
-import 'cafeteria_page.dart';
+import 'package:flutter/foundation.dart';
+import 'package:firebase_auth/firebase_auth.dart';
+import 'package:google_sign_in/google_sign_in.dart';
 import 'vendor/vendor_home_page.dart';
-import '../services/api_service.dart';
-import '../services/session.dart';
+import 'cafeteria_page.dart';
 import 'dart:ui' as ui;
+import 'package:cloud_firestore/cloud_firestore.dart';
+
 class LoginPage extends StatefulWidget {
   final VoidCallback? toggleTheme;
   const LoginPage({super.key, this.toggleTheme});
@@ -15,8 +16,41 @@ class LoginPage extends StatefulWidget {
 }
 
 class _LoginPageState extends State<LoginPage> {
-  final Color appBlue = const Color(0xFF2563EB); 
-  bool isSigningIn = false;
+  final Color appBlue = const Color(0xFF2563EB);
+  
+
+
+Future<UserCredential?> signInWithGoogle() async {
+  try {
+    if (kIsWeb) {
+      GoogleAuthProvider googleProvider = GoogleAuthProvider();
+      return await FirebaseAuth.instance.signInWithPopup(googleProvider);
+    } else {
+      final GoogleSignIn googleSignIn = GoogleSignIn(
+        scopes: ['email'],
+      );
+      // fully disconnects
+
+    //await googleSignIn.signOut();  
+      final GoogleSignInAccount? googleUser = await googleSignIn.signIn();
+      if (googleUser == null) return null;
+
+      final GoogleSignInAuthentication googleAuth =
+          await googleUser.authentication;
+
+      final credential = GoogleAuthProvider.credential(
+        accessToken: googleAuth.accessToken,
+        idToken: googleAuth.idToken,
+      );
+
+      return await FirebaseAuth.instance.signInWithCredential(credential);
+    }
+  } catch (e) {
+    print("Google SignIn Error: $e");
+    return null;
+  }
+}
+  
 
   @override
   Widget build(BuildContext context) {
@@ -176,17 +210,18 @@ Center(
           isMobile: true,
           appBlue: appBlue,
         ),
-        Positioned(
-  bottom: 0,
+
+      ],
+    ),
+  ),
+),
+  Positioned(
+  bottom: 10,
   left: 0,
   right: 0,
   child: _FadeSlide(
     delay: 600,
     child: _buildWatermark(),
-  ),
-),
-      ],
-    ),
   ),
 ),
     ],
@@ -328,63 +363,88 @@ Widget _buildFeaturePoint(IconData icon, String text, bool isMobile, Color textC
                 side: BorderSide(color: Colors.grey.shade200, width: 1.5),
                 shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
               ),
-              onPressed: isSigningIn ? null : () => _signInWithGoogle(isVendor: false),
+            onPressed: () async {
+  UserCredential? userCred = await signInWithGoogle();
+
+  if (userCred == null) return;
+
+  final user = userCred.user!;
+  
+  // DEBUG - check these in your console
+  print("=== DEBUG ===");
+  print("Email: ${user.email}");
+  print("Email lowercase: ${user.email?.toLowerCase().trim()}");
+
+  final query = await FirebaseFirestore.instance
+      .collection('user')
+      .where('email', isEqualTo: user.email?.toLowerCase().trim())
+      .get();
+
+  print("Docs found: ${query.docs.length}");
+  
+  if (query.docs.isNotEmpty) {
+    print("Doc data: ${query.docs.first.data()}");
+    print("Role: ${query.docs.first['role']}");
+  } else {
+    // Let's also fetch ALL docs to see what's in the collection
+    final all = await FirebaseFirestore.instance.collection('user').get();
+    print("Total docs in 'user' collection: ${all.docs.length}");
+    for (var doc in all.docs) {
+      print("Doc: ${doc.data()}");
+    }
+  }
+
+  if (query.docs.isEmpty) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Access denied. Contact admin.")),
+    );
+    await FirebaseAuth.instance.signOut();
+    return;
+  }
+
+  final role = query.docs.first['role'];
+  if (role == 'vendor') {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => VendorHomePage(
+          toggleTheme: widget.toggleTheme ?? () {},
+        ),
+      ),
+    );
+  } else if (role == 'user') {
+    Navigator.pushReplacement(
+      context,
+      MaterialPageRoute(
+        builder: (_) => CafeteriaPage(
+          toggleTheme: widget.toggleTheme ?? () {},
+        ),
+      ),
+    );
+  } else {
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text("Invalid role. Contact admin.")),
+    );
+  }
+},
+
+            
+              
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
                   Image.asset('google.png', height: 24, errorBuilder: (_, __, ___) => const Icon(Icons.g_mobiledata, size: 28, color: Colors.blue)),
                   const SizedBox(width: 14),
-                  Text(
-                    isSigningIn ? "Signing in..." : "Continue with Google",
-                    style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700),
-                  ),
+                  const Text("Continue with Google", style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
                 ],
+  
+  
+            ),
+          ),
               ),
-            ),
-          ),
-          const SizedBox(height: 14),
-          TextButton(
-            onPressed: isSigningIn ? null : () => _signInWithGoogle(isVendor: true),
-            child: Text(
-              "Vendor Google Sign-In",
-              style: TextStyle(color: appBlue, fontWeight: FontWeight.w800),
-            ),
-          ),
         ],
-      ),
+      )
     );
-  }
-
-  Future<void> _signInWithGoogle({required bool isVendor}) async {
-    setState(() => isSigningIn = true);
-    try {
-      final user = await ApiService.googleSignIn(
-        googleId: isVendor ? "google_vendor_001" : "google_customer_001",
-        name: isVendor ? "Madno Vendor" : "Demo Customer",
-        email: isVendor ? "vendor@nevark.test" : "customer@nevark.test",
-      );
-      AppSession.setUser(user);
-
-      if (!mounted) return;
-      Navigator.pushReplacement(
-        context,
-        MaterialPageRoute(
-          builder: (_) => user["role"] == "vendor"
-              ? VendorHomePage(toggleTheme: widget.toggleTheme ?? () {})
-              : CafeteriaPage(toggleTheme: widget.toggleTheme ?? () {}),
-        ),
-      );
-    } catch (error) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(error.toString().replaceFirst("Exception: ", "")),
-          backgroundColor: Colors.redAccent,
-        ),
-      );
-    } finally {
-      if (mounted) setState(() => isSigningIn = false);
-    }
   }
 
   // ─── 5. WATERMARK ────────────────────────────────────────────────────────
@@ -599,7 +659,7 @@ void initState() {
           child: Opacity(
             opacity: _opacity.value,
             child: Text(
-              "BenchBites",
+              "Cavery",
               style: TextStyle(
                 fontSize: widget.isMobile ? 34 : 54,
                 fontWeight: FontWeight.w900,
@@ -854,3 +914,4 @@ class _LoopingFeaturePointsState extends State<_LoopingFeaturePoints> with Ticke
     );
   }
 }
+

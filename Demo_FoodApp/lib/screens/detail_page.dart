@@ -384,7 +384,7 @@ class _DetailPageState extends State<DetailPage> {
                               width: 65,
                               height: 65,
                               fit: BoxFit.cover,
-                              errorBuilder: (_, __, ___) => const SizedBox(width: 65, height: 65),
+                              errorBuilder: (_, _, _) => const SizedBox(width: 65, height: 65),
                             );
                           },
                         ),
@@ -552,7 +552,7 @@ class _DetailPageState extends State<DetailPage> {
                 ),
               ),
             ),
-            ...orders.map((order) => _buildOrderCardFromApi(order, isDark)).toList(),
+            ...orders.map((order) => _buildOrderCardFromApi(order, isDark)),
           ],
         );
 

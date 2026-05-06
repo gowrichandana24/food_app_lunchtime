@@ -1,3 +1,5 @@
+const dns = require('node:dns');
+dns.setServers(['8.8.8.8', '8.8.4.4']); // Forces use of Google DNS
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
@@ -9,6 +11,7 @@ const Cafe = require('./models/cafe');
 const MenuItem = require('./models/menuitems');
 const Order = require('./models/order');
 const User = require('./models/user');
+const Notification = require('./models/notification');
 
 const app = express();
 const allowedStatuses = ['Pending', 'Preparing', 'Ready', 'Completed', 'Rejected'];
@@ -42,6 +45,49 @@ function buildCafeQuery(req) {
     query.category = req.query.category;
   }
   return query;
+}
+
+function buildNotificationPayload(order, status) {
+  const items = Array.isArray(order.items) ? order.items.map(item => item.name).filter(Boolean) : [];
+  switch (status) {
+    case 'Pending':
+      return {
+        title: 'Order Placed',
+        message: `Your order ${order.orderId} was placed successfully and is awaiting vendor confirmation.`,
+        status,
+        items,
+      };
+    case 'Preparing':
+      return {
+        title: 'Order Accepted',
+        message: `Your order ${order.orderId} is accepted and being prepared.`,
+        status,
+        items,
+      };
+    case 'Ready':
+      return {
+        title: 'Ready for Pickup',
+        message: `Your order ${order.orderId} is ready for pickup at ${order.cafeteriaName}.`,
+        status,
+        items,
+      };
+    case 'Completed':
+      return {
+        title: 'Order Picked Up',
+        message: `Your order ${order.orderId} has been picked up. Enjoy your meal!`,
+        status,
+        items,
+      };
+    case 'Rejected':
+      return {
+        title: 'Order Rejected',
+        message: `Your order ${order.orderId} was rejected by the vendor.`,
+        status,
+        items,
+      };
+    default:
+      return null;
+  }
 }
 
 async function createOrder(req, res) {
@@ -111,6 +157,20 @@ async function createOrder(req, res) {
       receipt: order.orderId,
     };
     razorpayOrder = await razorpay.orders.create(options);
+  }
+
+  if (order.payment?.status === 'Paid' && order.customerEmail) {
+    const payload = buildNotificationPayload(order, order.status);
+    if (payload) {
+      await Notification.create({
+        orderId: order.orderId,
+        customerEmail: order.customerEmail,
+        title: payload.title,
+        message: payload.message,
+        status: payload.status,
+        items: payload.items,
+      });
+    }
   }
 
   res.status(201).json({ order, razorpayOrder });
@@ -249,8 +309,21 @@ app.post('/api/orders/place', asyncHandler(createOrder));
 app.get('/api/orders', asyncHandler(async (req, res) => {
   const query = {};
   if (req.query.cafeId) query.cafeId = req.query.cafeId;
+  if (req.query.vendorId) {
+    const cafes = await Cafe.find({ vendorId: req.query.vendorId }).select('_id');
+    const cafeIds = cafes.map(cafe => cafe._id);
+    if (cafeIds.length) {
+      query.cafeId = { $in: cafeIds };
+    } else {
+      query.cafeId = { $in: [] };
+    }
+  }
   if (req.query.customerEmail) query.customerEmail = req.query.customerEmail.toLowerCase();
   if (req.query.status) query.status = req.query.status;
+
+  // Filter for recent orders (last 7 days)
+  const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+  query.createdAt = { $gte: sevenDaysAgo };
 
   const orders = await Order.find(query).sort({ createdAt: -1 });
   res.json(orders);
@@ -260,6 +333,21 @@ app.get('/api/orders/:orderId', asyncHandler(async (req, res) => {
   const order = await Order.findOne({ orderId: req.params.orderId });
   if (!order) return res.status(404).json({ message: 'Order not found' });
   res.json(order);
+}));
+
+app.get('/api/notifications', asyncHandler(async (req, res) => {
+  const query = {};
+  if (req.query.customerEmail) query.customerEmail = req.query.customerEmail.toLowerCase();
+  if (req.query.orderId) query.orderId = req.query.orderId;
+  if (req.query.read !== undefined) query.read = req.query.read === 'true';
+  const notifications = await Notification.find(query).sort({ read: 1, createdAt: -1 }).limit(50);
+  res.json(notifications);
+}));
+
+app.patch('/api/notifications/:id/read', asyncHandler(async (req, res) => {
+  const notification = await Notification.findByIdAndUpdate(req.params.id, { read: true }, { new: true });
+  if (!notification) return res.status(404).json({ message: 'Notification not found' });
+  res.json(notification);
 }));
 
 app.patch('/api/orders/:orderId/status', asyncHandler(async (req, res) => {
@@ -275,6 +363,19 @@ app.patch('/api/orders/:orderId/status', asyncHandler(async (req, res) => {
   );
 
   if (!order) return res.status(404).json({ message: 'Order not found' });
+
+  const payload = buildNotificationPayload(order, status);
+  if (payload && order.customerEmail) {
+    await Notification.create({
+      orderId: order.orderId,
+      customerEmail: order.customerEmail,
+      title: payload.title,
+      message: payload.message,
+      status: payload.status,
+      items: payload.items,
+    });
+  }
+
   res.json(order);
 }));
 
@@ -343,17 +444,29 @@ app.post('/api/payment/verify', asyncHandler(async (req, res) => {
 app.patch('/api/orders/:orderId/payment', asyncHandler(async (req, res) => {
   const { transactionId, status } = req.body;
 
-  const order = await Order.findOneAndUpdate(
-    { orderId: req.params.orderId },
-    { 
-      'payment.transactionId': transactionId,
-      'payment.status': status,
-      'payment.provider': 'Razorpay'
-    },
-    { new: true }
-  );
-
+  const order = await Order.findOne({ orderId: req.params.orderId });
   if (!order) return res.status(404).json({ message: 'Order not found' });
+
+  const previousPaymentStatus = order.payment?.status;
+  order.payment.transactionId = transactionId;
+  order.payment.status = status;
+  order.payment.provider = 'Razorpay';
+  await order.save();
+
+  if (status === 'Paid' && previousPaymentStatus !== 'Paid' && order.customerEmail) {
+    const payload = buildNotificationPayload(order, 'Pending');
+    if (payload) {
+      await Notification.create({
+        orderId: order.orderId,
+        customerEmail: order.customerEmail,
+        title: payload.title,
+        message: payload.message,
+        status: payload.status,
+        items: payload.items,
+      });
+    }
+  }
+
   res.json(order);
 }));
 

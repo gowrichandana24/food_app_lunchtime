@@ -598,7 +598,7 @@ class _HomePageState extends State<HomePage> {
                     height: 110,
                     width: double.infinity,
                     fit: BoxFit.cover,
-                    errorBuilder: (_, __, ___) => const SizedBox(height: 110),
+                    errorBuilder: (_, _, _) => const SizedBox(height: 110),
                   );
                 },
               ),

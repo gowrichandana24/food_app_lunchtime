@@ -185,8 +185,9 @@ class _VendorHomePageState extends State<VendorHomePage> {
           if (MediaQuery.of(context).size.width < 850) Navigator.pop(context);
           Future.delayed(const Duration(milliseconds: 150), () {
             Widget page;
-            if (title == "Orders") page = const OrdersPage();
-            else if (title == "Analytics") page = const AnalyticsPage();
+            if (title == "Orders") {
+              page = const OrdersPage();
+            } else if (title == "Analytics") page = const AnalyticsPage();
             else if (title == "Menu") page = MenuPage(toggleTheme: widget.toggleTheme);
             else if (title == "Reports") page = const SalesReportPage();
             else if (title == "Settings") page = const SettingsPage();
@@ -310,10 +311,12 @@ class _VendorHomePageState extends State<VendorHomePage> {
   }
 
   Widget buildOrdersTable(Color cardColor, Color textColor, Color subText, bool isDark) {
-    final orders = recentOrders.isEmpty ? <Map<String, dynamic>>[] : recentOrders.map((order) => {
+    // Limit to latest 5 orders for better performance
+    final limitedOrders = recentOrders.take(5).toList();
+    final orders = limitedOrders.isEmpty ? <Map<String, dynamic>>[] : limitedOrders.map((order) => {
       "id": order["orderId"],
       "name": order["customerName"] ?? "Customer",
-      "amount": "Rs ${order["total"] ?? 0}",
+      "amount": "₹${order["total"] ?? 0}",
       "status": order["status"] ?? "Pending",
       "items": order["items"] ?? [],
     }).toList();
@@ -322,19 +325,29 @@ class _VendorHomePageState extends State<VendorHomePage> {
       decoration: BoxDecoration(color: cardColor, borderRadius: BorderRadius.circular(24), boxShadow: [BoxShadow(color: Colors.black.withOpacity(isDark ? 0.3 : 0.05), blurRadius: 20, offset: const Offset(0, 10))]),
       child: ClipRRect(
         borderRadius: BorderRadius.circular(24),
-        child: ListView.separated(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          itemCount: orders.length,
-          separatorBuilder: (context, index) => Divider(height: 1, color: isDark ? Colors.white10 : Colors.grey.shade200),
-          itemBuilder: (context, index) {
-            final order = orders[index];
-            return InteractiveScale(
-              onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VendorOrderDetailsPage(order: order))), 
-              child: buildOrderRow(order["id"] as String, order["name"] as String, order["amount"] as String, order["status"] as String, textColor, subText),
-            );
-          },
-        ),
+        child: orders.isEmpty
+            ? Padding(
+                padding: const EdgeInsets.symmetric(vertical: 24),
+                child: Center(
+                  child: Text(
+                    "No recent orders",
+                    style: TextStyle(color: subText, fontStyle: FontStyle.italic),
+                  ),
+                ),
+              )
+            : ListView.separated(
+                shrinkWrap: true,
+                physics: const NeverScrollableScrollPhysics(),
+                itemCount: orders.length,
+                separatorBuilder: (context, index) => Divider(height: 1, color: isDark ? Colors.white10 : Colors.grey.shade200),
+                itemBuilder: (context, index) {
+                  final order = orders[index];
+                  return InteractiveScale(
+                    onTap: () => Navigator.push(context, MaterialPageRoute(builder: (_) => VendorOrderDetailsPage(order: order))), 
+                    child: buildOrderRow(order["id"] as String, order["name"] as String, order["amount"] as String, order["status"] as String, textColor, subText),
+                  );
+                },
+              ),
       ),
     );
   }
@@ -475,7 +488,7 @@ class _VendorOrderDetailsPageState extends State<VendorOrderDetailsPage> {
                         ],
                       ),
                     );
-                  }).toList(),
+                  }),
                   
                   Padding(padding: const EdgeInsets.symmetric(vertical: 12), child: Divider(color: isDark ? Colors.white12 : Colors.grey.shade200)),
                   

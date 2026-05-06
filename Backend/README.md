@@ -30,4 +30,5 @@ The API runs on `http://localhost:5000` by default.
 - `GET /api/orders`
 - `GET /api/orders/:orderId`
 - `PATCH /api/orders/:orderId/status`
+- `GET /api/notifications`
 - `GET /api/vendor/:vendorId/dashboard`
